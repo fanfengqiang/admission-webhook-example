@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/golang/glog"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -16,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/klog"
 )
 
 var (
@@ -51,9 +51,9 @@ var (
 )
 
 const (
-	admissionWebhookAnnotationValidateKey = "admission-webhook-example.qikqiak.com/validate"
-	admissionWebhookAnnotationMutateKey   = "admission-webhook-example.qikqiak.com/mutate"
-	admissionWebhookAnnotationStatusKey   = "admission-webhook-example.qikqiak.com/status"
+	admissionWebhookAnnotationValidateKey = "admission-webhook-example.admission.5ik8s.xyz/validate"
+	admissionWebhookAnnotationMutateKey   = "admission-webhook-example.admission.5ik8s.xyz/mutate"
+	admissionWebhookAnnotationStatusKey   = "admission-webhook-example.admission.5ik8s.xyz/status"
 
 	nameLabel      = "app.kubernetes.io/name"
 	instanceLabel  = "app.kubernetes.io/instance"
@@ -62,7 +62,7 @@ const (
 	partOfLabel    = "app.kubernetes.io/part-of"
 	managedByLabel = "app.kubernetes.io/managed-by"
 
-	// NA 不可用
+	// NA not_available
 	NA = "not_available"
 )
 
@@ -97,7 +97,7 @@ func admissionRequired(ignoredList []string, admissionAnnotationKey string, meta
 	// skip special kubernetes system namespaces
 	for _, namespace := range ignoredList {
 		if metadata.Namespace == namespace {
-			glog.Infof("Skip validation for %v for it's in special namespace:%v", metadata.Name, metadata.Namespace)
+			klog.Infof("Skip validation for %v for it's in special namespace:%v", metadata.Name, metadata.Namespace)
 			return false
 		}
 	}
@@ -129,13 +129,13 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 		required = false
 	}
 
-	glog.Infof("Mutation policy for %v/%v: required:%v", metadata.Namespace, metadata.Name, required)
+	klog.Infof("Mutation policy for %v/%v: required:%v", metadata.Namespace, metadata.Name, required)
 	return required
 }
 
 func validationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	required := admissionRequired(ignoredList, admissionWebhookAnnotationValidateKey, metadata)
-	glog.Infof("Validation policy for %v/%v: required:%v", metadata.Namespace, metadata.Name, required)
+	klog.Infof("Validation policy for %v/%v: required:%v", metadata.Namespace, metadata.Name, required)
 	return required
 }
 
@@ -194,14 +194,14 @@ func (whsvr *WebhookServer) validate(ar *admissionv1.AdmissionReview) *admission
 		resourceNamespace, resourceName string
 	)
 
-	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
+	klog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, resourceName, req.UID, req.Operation, req.UserInfo)
 
 	switch req.Kind.Kind {
 	case "Deployment":
 		var deployment appsv1.Deployment
 		if err := json.Unmarshal(req.Object.Raw, &deployment); err != nil {
-			glog.Errorf("Could not unmarshal raw object: %v", err)
+			klog.Errorf("Could not unmarshal raw object: %v", err)
 			return &admissionv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: err.Error(),
@@ -213,7 +213,7 @@ func (whsvr *WebhookServer) validate(ar *admissionv1.AdmissionReview) *admission
 	case "Service":
 		var service corev1.Service
 		if err := json.Unmarshal(req.Object.Raw, &service); err != nil {
-			glog.Errorf("Could not unmarshal raw object: %v", err)
+			klog.Errorf("Could not unmarshal raw object: %v", err)
 			return &admissionv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: err.Error(),
@@ -225,7 +225,7 @@ func (whsvr *WebhookServer) validate(ar *admissionv1.AdmissionReview) *admission
 	}
 
 	if !validationRequired(ignoredNamespaces, objectMeta) {
-		glog.Infof("Skipping validation for %s/%s due to policy check", resourceNamespace, resourceName)
+		klog.Infof("Skipping validation for %s/%s due to policy check", resourceNamespace, resourceName)
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,
 		}
@@ -233,8 +233,8 @@ func (whsvr *WebhookServer) validate(ar *admissionv1.AdmissionReview) *admission
 
 	allowed := true
 	var result *metav1.Status
-	glog.Info("available labels:", availableLabels)
-	glog.Info("required labels", requiredLabels)
+	klog.Info("available labels:", availableLabels)
+	klog.Info("required labels", requiredLabels)
 	for _, rl := range requiredLabels {
 		if _, ok := availableLabels[rl]; !ok {
 			allowed = false
@@ -260,14 +260,14 @@ func (whsvr *WebhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1
 		resourceNamespace, resourceName       string
 	)
 
-	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
+	klog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, resourceName, req.UID, req.Operation, req.UserInfo)
 
 	switch req.Kind.Kind {
 	case "Deployment":
 		var deployment appsv1.Deployment
 		if err := json.Unmarshal(req.Object.Raw, &deployment); err != nil {
-			glog.Errorf("Could not unmarshal raw object: %v", err)
+			klog.Errorf("Could not unmarshal raw object: %v", err)
 			return &admissionv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: err.Error(),
@@ -279,7 +279,7 @@ func (whsvr *WebhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1
 	case "Service":
 		var service corev1.Service
 		if err := json.Unmarshal(req.Object.Raw, &service); err != nil {
-			glog.Errorf("Could not unmarshal raw object: %v", err)
+			klog.Errorf("Could not unmarshal raw object: %v", err)
 			return &admissionv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: err.Error(),
@@ -291,7 +291,7 @@ func (whsvr *WebhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1
 	}
 
 	if !mutationRequired(ignoredNamespaces, objectMeta) {
-		glog.Infof("Skipping validation for %s/%s due to policy check", resourceNamespace, resourceName)
+		klog.Infof("Skipping validation for %s/%s due to policy check", resourceNamespace, resourceName)
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,
 		}
@@ -307,7 +307,17 @@ func (whsvr *WebhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1
 		}
 	}
 
-	glog.Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
+	klog.Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
+	// return &admissionv1.AdmissionReview{
+	// 	Response: &admissionv1.AdmissionResponse{
+	// 		Allowed: true,
+	// 		Patch:   patchBytes,
+	// 		PatchType: func() *admissionv1.PatchType {
+	// 			pt := admissionv1.PatchTypeJSONPatch
+	// 			return &pt
+	// 		}(),
+	// 	},
+	// }
 	return &admissionv1.AdmissionResponse{
 		Allowed: true,
 		Patch:   patchBytes,
@@ -327,7 +337,7 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(body) == 0 {
-		glog.Error("empty body")
+		klog.Error("empty body")
 		http.Error(w, "empty body", http.StatusBadRequest)
 		return
 	}
@@ -335,7 +345,7 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		glog.Errorf("Content-Type=%s, expect application/json", contentType)
+		klog.Errorf("Content-Type=%s, expect application/json", contentType)
 		http.Error(w, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
 		return
 	}
@@ -343,14 +353,14 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	var admissionResponse *admissionv1.AdmissionResponse
 	ar := admissionv1.AdmissionReview{}
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
-		glog.Errorf("Can't decode body: %v", err)
+		klog.Errorf("Can't decode body: %v", err)
 		admissionResponse = &admissionv1.AdmissionResponse{
 			Result: &metav1.Status{
 				Message: err.Error(),
 			},
 		}
 	} else {
-		fmt.Println(r.URL.Path)
+		klog.Infof("request path: %v", r.URL.Path)
 		if r.URL.Path == "/mutate" {
 			admissionResponse = whsvr.mutate(&ar)
 		} else if r.URL.Path == "/validate" {
@@ -359,21 +369,25 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	admissionReview := admissionv1.AdmissionReview{}
+	admissionReview.Kind = "AdmissionReview"
+	admissionReview.APIVersion = "admission.k8s.io/v1"
 	if admissionResponse != nil {
 		admissionReview.Response = admissionResponse
+
 		if ar.Request != nil {
 			admissionReview.Response.UID = ar.Request.UID
 		}
 	}
 
+	klog.Infof("resp: %v", admissionReview)
 	resp, err := json.Marshal(admissionReview)
 	if err != nil {
-		glog.Errorf("Can't encode response: %v", err)
+		klog.Errorf("Can't encode response: %v", err)
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 	}
-	glog.Infof("Ready to write reponse ...")
+	klog.Infof("Ready to write reponse ...")
 	if _, err := w.Write(resp); err != nil {
-		glog.Errorf("Can't write response: %v", err)
+		klog.Errorf("Can't write response: %v", err)
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 	}
 }

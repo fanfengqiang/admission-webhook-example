@@ -10,10 +10,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 func main() {
+	klog.InitFlags(nil)
 	var parameters WhSvrParameters
 
 	// get command line parameters
@@ -24,7 +25,7 @@ func main() {
 
 	pair, err := tls.LoadX509KeyPair(parameters.certFile, parameters.keyFile)
 	if err != nil {
-		glog.Errorf("Failed to load key pair: %v", err)
+		klog.Errorf("Failed to load key pair: %v", err)
 	}
 
 	whsvr := &WebhookServer{
@@ -43,17 +44,17 @@ func main() {
 	// start webhook server in new routine
 	go func() {
 		if err := whsvr.server.ListenAndServeTLS("", ""); err != nil {
-			glog.Errorf("Failed to listen and serve webhook server: %v", err)
+			klog.Errorf("Failed to listen and serve webhook server: %v", err)
 		}
 	}()
 
-	glog.Info("Server started")
+	klog.Info("Server started")
 
 	// listening OS shutdown singal
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	<-signalChan
 
-	glog.Infof("Got OS shutdown signal, shutting down webhook server gracefully...")
+	klog.Infof("Got OS shutdown signal, shutting down webhook server gracefully...")
 	whsvr.server.Shutdown(context.Background())
 }
