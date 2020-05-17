@@ -62,14 +62,16 @@ const (
 	partOfLabel    = "app.kubernetes.io/part-of"
 	managedByLabel = "app.kubernetes.io/managed-by"
 
+	// NA 不可用
 	NA = "not_available"
 )
 
+// WebhookServer is the http server
 type WebhookServer struct {
 	server *http.Server
 }
 
-// Webhook Server parameters
+// WhSvrParameters Server parameters
 type WhSvrParameters struct {
 	port           int    // webhook server port
 	certFile       string // path to the x509 certificate for https
